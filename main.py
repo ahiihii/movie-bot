@@ -1,80 +1,253 @@
 import os
 import logging
-import httpx
 import asyncio
+import httpx
+
 from aiohttp import web
 from urllib.parse import quote
-from html import escape
-from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Logging và Token
-logging.basicConfig(level=logging.INFO)
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
+
+# =========================
+# LOGGING
+# =========================
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
 logger = logging.getLogger(__name__)
 
-TOKEN = os.environ.get('TOKEN')
-PORT = int(os.environ.get('PORT', 8080)) # Render sẽ cấp PORT này
+# =========================
+# ENV
+# =========================
 
-# Global Session
+TOKEN = os.environ.get("TOKEN")
+PORT = int(os.environ.get("PORT", 8080))
+
+if not TOKEN:
+    raise ValueError("TOKEN environment variable not found!")
+
+# =========================
+# HTTP CLIENT
+# =========================
+
 client = httpx.AsyncClient(timeout=10)
 
-# Phần logic bot (giữ nguyên như cũ)
+# =========================
+# SOURCES
+# =========================
+
 SOURCES = {
-    '1': {'url': 'https://api.nguonc.com/api/films/search?keyword=', 'base_link': 'https://nguonc.com/phim/'},
-    '2': {'url': 'https://api.kkphim.com/api/films/search?keyword=', 'base_link': 'https://kkphim.com/phim/'},
-    '3': {'url': 'https://ophim1.com/v1/api/tim-kiem?keyword=', 'base_link': 'https://ophim1.com/phim/'}
+    '1': {
+        'url': 'https://api.nguonc.com/api/films/search?keyword=',
+        'base_link': 'https://nguonc.com/phim/'
+    },
+    '2': {
+        'url': 'https://api.kkphim.com/api/films/search?keyword=',
+        'base_link': 'https://kkphim.com/phim/'
+    },
+    '3': {
+        'url': 'https://ophim1.com/v1/api/tim-kiem?keyword=',
+        'base_link': 'https://ophim1.com/phim/'
+    }
 }
 
+# =========================
+# SEARCH MOVIE
+# =========================
+
 async def tim_phim(source_id, keyword):
+
     source = SOURCES.get(source_id)
-    if not source: return None
-    try:
-        res = await client.get(source['url'] + quote(keyword))
-        res.raise_for_status()
-        data = res.json()
-        return (data.get('data', {}).get('items') or data.get('items') or [])[:5]
-    except Exception as e:
-        logger.error(f"API Error: {e}")
+
+    if not source:
         return None
 
+    try:
+
+        url = source['url'] + quote(keyword)
+
+        response = await client.get(url)
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        items = (
+            data.get('data', {}).get('items')
+            or data.get('items')
+            or []
+        )
+
+        return items[:5]
+
+    except Exception as e:
+
+        logger.error(f"Movie API error: {e}")
+
+        return None
+
+# =========================
+# COMMAND HANDLER
+# =========================
+
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cmd_parts = update.message.text.split(maxsplit=1)
+
+    text = update.message.text
+
+    cmd_parts = text.split(maxsplit=1)
+
     if len(cmd_parts) < 2:
-        await update.message.reply_text("Cú pháp: /<nguồn> [tên phim]")
+
+        await update.message.reply_text(
+            "Cú pháp:\n/1 Batman"
+        )
+
         return
+
     source_id = cmd_parts[0][1:]
-    movies = await tim_phim(source_id, cmd_parts[1])
+
+    keyword = cmd_parts[1]
+
+    await update.message.reply_text("🔍 Đang tìm phim...")
+
+    movies = await tim_phim(source_id, keyword)
+
     if not movies:
-        await update.message.reply_text("Không tìm thấy kết quả!")
+
+        await update.message.reply_text(
+            "❌ Không tìm thấy phim!"
+        )
+
         return
-    keyboard = [[InlineKeyboardButton(m.get('name'), callback_data=f"view|{source_id}|{m.get('slug')}")] for m in movies]
-    await update.message.reply_text("Chọn phim:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    keyboard = []
+
+    for movie in movies:
+
+        name = movie.get("name", "Unknown")
+
+        slug = movie.get("slug", "")
+
+        callback_data = f"view|{source_id}|{slug}"
+
+        keyboard.append([
+            InlineKeyboardButton(
+                name,
+                callback_data=callback_data
+            )
+        ])
+
+    await update.message.reply_text(
+        "🎬 Chọn phim:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# =========================
+# BUTTON HANDLER
+# =========================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("Đang lấy chi tiết...")
 
-# --- THÊM PHẦN NÀY ĐỂ CHẠY TRÊN WEB SERVICE ---
-async def web_server(request):
-    return web.Response(text="Bot is running!")
+    query = update.callback_query
+
+    await query.answer()
+
+    try:
+
+        _, source_id, slug = query.data.split("|")
+
+        await query.edit_message_text(
+            f"🎥 Bạn đã chọn:\n\nNguồn: {source_id}\nSlug: {slug}"
+        )
+
+    except Exception as e:
+
+        logger.error(f"Button error: {e}")
+
+        await query.edit_message_text(
+            "❌ Có lỗi xảy ra!"
+        )
+
+# =========================
+# WEB SERVER
+# =========================
+
+async def home(request):
+
+    return web.Response(
+        text="Bot is running!"
+    )
+
+# =========================
+# MAIN
+# =========================
+
+async def main():
+
+    # Telegram app
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(
+        CommandHandler(['1', '2', '3'], search)
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            button_handler,
+            pattern=r"^view\|"
+        )
+    )
+
+    # Web server
+    web_app = web.Application()
+
+    web_app.router.add_get('/', home)
+
+    runner = web.AppRunner(web_app)
+
+    await runner.setup()
+
+    site = web.TCPSite(
+        runner,
+        host='0.0.0.0',
+        port=PORT
+    )
+
+    await site.start()
+
+    logger.info(f"Web server running on port {PORT}")
+
+    # Telegram lifecycle MANUAL
+    await app.initialize()
+
+    await app.start()
+
+    await app.updater.start_polling()
+
+    logger.info("Bot started successfully!")
+
+    # giữ process sống mãi
+    while True:
+        await asyncio.sleep(3600)
+
+# =========================
+# RUN
+# =========================
 
 if __name__ == '__main__':
-    # 1. Khởi tạo bot
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler(['1', '2', '3'], search))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    
-    # 2. Chạy web server song song
-    web_app = web.Application()
-    web_app.add_routes([web.get('/', web_server)])
-    runner = web.AppRunner(web_app)
-    
-    async def run_both():
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', PORT)
-        await site.start()
-        logger.info(f"Bot & Web Server running on port {PORT}")
-        await app.run_polling()
 
-    asyncio.run(run_both())
+    asyncio.run(main())
