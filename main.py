@@ -47,14 +47,12 @@ client = httpx.AsyncClient(timeout=15)
 # SOURCES
 # =========================
 SOURCES = {
+  SOURCES = {
     '1': {
-        'name': 'NguonC',
         'url': 'https://phim.nguonc.com/api/films/search?keyword=',
-        'base_link': 'https://phim.nguonc.com/phim/'
+        'base_link': 'https://nguonc.com/phim/'
     },
-
     '2': {
-        'name': 'OPhim',
         'url': 'https://ophim1.com/v1/api/tim-kiem?keyword=',
         'base_link': 'https://ophim1.com/phim/'
     }
