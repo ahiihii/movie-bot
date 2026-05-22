@@ -51,20 +51,17 @@ client = httpx.AsyncClient(timeout=10)
 # =========================
 
 SOURCES = {
+    
+SOURCES = {
     '1': {
-        'url': 'https://api.nguonc.com/api/films/search?keyword=',
+        'url': 'https://phim.nguonc.com/api/films/search?keyword=',
         'base_link': 'https://nguonc.com/phim/'
-    },
-    '2': {
-        'url': 'https://api.kkphim.com/api/films/search?keyword=',
-        'base_link': 'https://kkphim.com/phim/'
     },
     '3': {
         'url': 'https://ophim1.com/v1/api/tim-kiem?keyword=',
         'base_link': 'https://ophim1.com/phim/'
     }
 }
-
 # =========================
 # SEARCH MOVIE
 # =========================
