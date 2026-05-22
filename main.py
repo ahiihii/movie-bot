@@ -2,15 +2,14 @@ import os
 import logging
 import asyncio
 import httpx
+
 from aiohttp import web
 from urllib.parse import quote
-
 from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup
 )
-
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -22,7 +21,7 @@ from telegram.ext import (
 # LOGGING
 # =========================
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
@@ -31,35 +30,31 @@ logger = logging.getLogger(__name__)
 # =========================
 # ENV
 # =========================
-TOKEN = os.getenv("TOKEN")
-PORT = int(os.getenv("PORT", 8080))
+TOKEN = os.environ.get("TOKEN")
+PORT = int(os.environ.get("PORT", 8080))
 
 if not TOKEN:
-    raise ValueError("TOKEN not found!")
+    raise ValueError("TOKEN environment variable not found!")
 
 # =========================
 # HTTP CLIENT
 # =========================
-client = httpx.AsyncClient(
-    timeout=15,
-    follow_redirects=True
-)
+client = httpx.AsyncClient(timeout=15)
 
 # =========================
 # MOVIE SOURCES
 # =========================
 SOURCES = {
-
-    "1": {
-        "name": "NguonC",
-        "url": "https://phim.nguonc.com/api/films/search?keyword=",
-        "base_link": "https://nguonc.com/phim/"
+    '1': {
+        'name': 'NguonC',
+        'url': 'https://phim.nguonc.com/api/films/search?keyword=',
+        'base_link': 'https://nguonc.com/phim/'
     },
 
-    "2": {
-        "name": "OPhim",
-        "url": "https://ophim1.com/v1/api/tim-kiem?keyword=",
-        "base_link": "https://ophim1.com/phim/"
+    '2': {
+        'name': 'OPhim',
+        'url': 'https://ophim1.com/v1/api/tim-kiem?keyword=',
+        'base_link': 'https://ophim.cc/phim/'
     }
 }
 
@@ -67,132 +62,146 @@ SOURCES = {
 # SEARCH MOVIE
 # =========================
 async def tim_phim(source_id, keyword):
-
     source = SOURCES.get(source_id)
 
     if not source:
-        return []
+        return None
 
     try:
-
-        url = source["url"] + quote(keyword)
+        url = source['url'] + quote(keyword)
 
         response = await client.get(url)
-
         response.raise_for_status()
 
         data = response.json()
 
+        logger.info(f"API response: {data}")
+
         items = (
-            data.get("items")
-            or data.get("data", {}).get("items")
+            data.get('items')
+            or data.get('data', {}).get('items')
             or []
         )
 
         return items[:5]
 
     except Exception as e:
-
         logger.error(f"Movie API error: {e}")
-
-        return []
-
-# =========================
-# START COMMAND
-# =========================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    text = (
-        "🎬 Bot tìm phim online\n\n"
-        "/1 tên phim = NguonC\n"
-        "/2 tên phim = OPhim\n\n"
-        "Ví dụ:\n"
-        "/2 one piece"
-    )
-
-    await update.message.reply_text(text)
+        return None
 
 # =========================
 # SEARCH COMMAND
 # =========================
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    text = update.message.text.strip()
-
+    text = update.message.text
     cmd_parts = text.split(maxsplit=1)
 
     if len(cmd_parts) < 2:
-
         await update.message.reply_text(
-            "❌ Sai cú pháp.\nVí dụ:\n/2 Batman"
+            "📌 Cú pháp:\n\n"
+            "/1 tên phim\n"
+            "/2 tên phim"
         )
-
         return
 
     source_id = cmd_parts[0][1:]
     keyword = cmd_parts[1]
 
-    if source_id not in SOURCES:
-
-        await update.message.reply_text(
-            "❌ Nguồn không hợp lệ!"
-        )
-
-        return
-
-    msg = await update.message.reply_text(
-        "🔍 Đang tìm phim..."
-    )
+    msg = await update.message.reply_text("🔍 Đang tìm phim...")
 
     movies = await tim_phim(source_id, keyword)
 
     if not movies:
-
-        await msg.edit_text(
-            "❌ Không tìm thấy phim!"
-        )
-
+        await msg.edit_text("❌ Không tìm thấy phim!")
         return
 
+    # =========================
+    # BUTTONS
+    # =========================
     keyboard = []
 
     for movie in movies:
 
-        name = movie.get("name", "Unknown")
-        slug = movie.get("slug", "")
+        movie_name = movie.get("name", "Unknown")
 
-        if not slug:
-            continue
-
-        callback_data = f"view|{source_id}|{slug}"
-
-        if len(callback_data) > 60:
-            continue
+        callback_data = (
+            f"view|{source_id}|{movie.get('slug', '')}"
+        )
 
         keyboard.append([
             InlineKeyboardButton(
-                text=name[:40],
+                movie_name,
                 callback_data=callback_data
             )
         ])
 
-    if not keyboard:
+    # =========================
+    # FIRST MOVIE INFO
+    # =========================
+    first_movie = movies[0]
 
-        await msg.edit_text(
-            "❌ Không có dữ liệu hợp lệ!"
-        )
-
-        return
-
-    await msg.edit_text(
-        "🎬 Chọn phim:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+    poster = (
+        first_movie.get("thumb_url")
+        or first_movie.get("poster_url")
     )
+
+    # Fix relative image url
+    if poster and poster.startswith("/"):
+        poster = "https://phimimg.com/" + poster
+
+    name = first_movie.get("name", "Không tên")
+    origin = first_movie.get("origin_name", "")
+    year = first_movie.get("year", "")
+
+    caption = (
+        f"🎬 <b>{name}</b>\n"
+        f"🌍 {origin}\n"
+        f"📅 {year}\n\n"
+        f"👇 Chọn phim bên dưới:"
+    )
+
+    # =========================
+    # SEND POSTER
+    # =========================
+    try:
+
+        if poster:
+
+            await update.message.reply_photo(
+                photo=poster,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+
+        else:
+
+            await update.message.reply_text(
+                caption,
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+
+        await msg.delete()
+
+    except Exception as e:
+
+        logger.error(f"Poster send error: {e}")
+
+        await update.message.reply_text(
+            caption,
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 # =========================
 # BUTTON HANDLER
 # =========================
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     query = update.callback_query
 
@@ -202,51 +211,52 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         _, source_id, slug = query.data.split("|")
 
-        source = SOURCES[source_id]
+        source = SOURCES.get(source_id)
 
-        movie_link = source["base_link"] + slug
+        movie_link = f"{source['base_link']}{slug}"
 
         text = (
-            f"🎥 <b>{slug}</b>\n\n"
-            f"🌐 Nguồn: {source['name']}\n"
-            f"🔗 {movie_link}"
+            f"🎥 <b>Thông tin phim</b>\n\n"
+            f"🌍 Nguồn: {source['name']}\n"
+            f"🔗 <a href='{movie_link}'>Xem phim tại đây</a>"
         )
 
-        await query.edit_message_text(
-            text,
+        await query.edit_message_caption(
+            caption=text,
             parse_mode="HTML"
         )
 
     except Exception as e:
 
-        logger.error(f"Button handler error: {e}")
+        logger.error(f"Button error: {e}")
 
-        await query.edit_message_text(
-            "❌ Có lỗi xảy ra!"
-        )
+        try:
+            await query.edit_message_text(
+                "❌ Có lỗi xảy ra!"
+            )
+        except:
+            pass
 
 # =========================
 # WEB SERVER
 # =========================
-async def health_check(request):
-
-    return web.Response(
-        text="Bot is running!"
-    )
+async def home(request):
+    return web.Response(text="Bot is running!")
 
 # =========================
 # MAIN
 # =========================
 async def main():
 
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(
-        CommandHandler("start", start)
+    # Telegram App
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .build()
     )
 
     app.add_handler(
-        CommandHandler(["1", "2"], search)
+        CommandHandler(['1', '2'], search)
     )
 
     app.add_handler(
@@ -256,10 +266,10 @@ async def main():
         )
     )
 
-    # WEB SERVER
+    # Web server
     web_app = web.Application()
 
-    web_app.router.add_get("/", health_check)
+    web_app.router.add_get('/', home)
 
     runner = web.AppRunner(web_app)
 
@@ -267,42 +277,25 @@ async def main():
 
     site = web.TCPSite(
         runner,
-        host="0.0.0.0",
-        port=PORT
+        '0.0.0.0',
+        PORT
     )
 
     await site.start()
 
-    # TELEGRAM BOT
+    # Telegram start
     await app.initialize()
-
     await app.start()
-
     await app.updater.start_polling()
 
     logger.info("Bot started successfully!")
 
-    try:
-
-        await asyncio.Event().wait()
-
-    finally:
-
-        logger.info("Shutting down...")
-
-        await app.updater.stop()
-
-        await app.stop()
-
-        await app.shutdown()
-
-        await client.aclose()
-
-        await runner.cleanup()
+    # Keep alive
+    while True:
+        await asyncio.sleep(3600)
 
 # =========================
-# RUN
+# START
 # =========================
-if __name__ == "__main__":
-
+if __name__ == '__main__':
     asyncio.run(main())
