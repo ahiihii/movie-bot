@@ -312,11 +312,7 @@ async def movie_detail(
 # MAIN
 # =====================================================
 
-if __name__ == "__main__":
-
-    asyncio.set_event_loop(
-        asyncio.new_event_loop()
-    )
+async def main():
 
     app = (
         ApplicationBuilder()
@@ -344,26 +340,19 @@ if __name__ == "__main__":
         )
     )
 
-    app.post_init = setup_commands
+    await setup_commands(app)
 
-    PORT = int(
-        os.environ.get("PORT", 10000)
-    )
+    print("BOT STARTING POLLING...")
 
-    APP_NAME = "movie-bot-super"
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
 
-    WEBHOOK_SECRET = "superbotfilm"
+    while True:
+        await asyncio.sleep(3600)
 
-    print("BOT STARTING WITH WEBHOOK...")
+# =====================================================
 
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=f"/webhook/{WEBHOOK_SECRET}",
-        webhook_url=(
-            f"https://{APP_NAME}.onrender.com/"
-            f"/webhook/{WEBHOOK_SECRET}"
-        ),
-        secret_token=WEBHOOK_SECRET,
-        drop_pending_updates=True
-    )
+if __name__ == "__main__":
+
+    asyncio.run(main())
