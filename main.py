@@ -1,289 +1,556 @@
-import os
-import logging
-import asyncio
-import httpx
-
-from aiohttp import web
-from urllib.parse import quote
-
 from telegram import (
     Update,
     InlineKeyboardButton,
-    InlineKeyboardMarkup
+    InlineKeyboardMarkup,
+    BotCommand
 )
 
 from telegram.ext import (
     ApplicationBuilder,
-    CommandHandler,
     CallbackQueryHandler,
-    ContextTypes
+    ContextTypes,
+    MessageHandler,
+    filters,
+    CommandHandler,
 )
 
-# =========================
-# LOGGING
-# =========================
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+import httpx
+import os
 
-logger = logging.getLogger(__name__)
+# =====================================================
+# RENDER ANTI SLEEP
+# =====================================================
 
-# =========================
-# ENV
-# =========================
-TOKEN = os.environ.get("TOKEN")
-PORT = int(os.environ.get("PORT", 8080))
+from flask import Flask
+from threading import Thread
 
-if not TOKEN:
-    raise ValueError("TOKEN not found!")
+web = Flask(__name__)
 
-# =========================
-# HTTP CLIENT
-# =========================
-client = httpx.AsyncClient(timeout=15)
+@web.route("/")
+def home():
+    return "Bot is running!"
 
-# =========================
+def run_web():
+    web.run(host="0.0.0.0", port=10000)
+
+Thread(target=run_web).start()
+
+# =====================================================
+# TOKEN
+# =====================================================
+
+TOKEN = os.getenv("BOT_TOKEN")
+
+# =====================================================
 # SOURCES
-# =========================
+# =====================================================
+
 SOURCES = {
-  SOURCES = {
-    '1': {
-        'url': 'https://phim.nguonc.com/api/films/search?keyword=',
-        'base_link': 'https://nguonc.com/phim/'
+
+    "1": {
+        "name": "NGUONC",
+        "tag": "Vietsub",
+        "search": "https://phim.nguonc.com/api/films/search?keyword=",
+        "detail": "https://phim.nguonc.com/api/film/",
     },
-    '2': {
-        'url': 'https://ophim1.com/v1/api/tim-kiem?keyword=',
-        'base_link': 'https://ophim1.com/phim/'
+
+    "2": {
+        "name": "OPHIM",
+        "tag": "Vietsub + Thuyết Minh",
+        "search": "https://ophim1.com/v1/api/tim-kiem?keyword=",
+        "detail": "https://ophim1.com/phim/",
+    },
+
+    "3": {
+        "name": "KKPHIM",
+        "tag": "Vietsub + Lồng Tiếng",
+        "search": "https://phimapi.com/v1/api/tim-kiem?keyword=",
+        "detail": "https://phimapi.com/phim/",
     }
 }
 
-# =========================
-# SEARCH MOVIE
-# =========================
-async def tim_phim(source_id, keyword):
+# =====================================================
+# HTTP CLIENT
+# =====================================================
 
-    source = SOURCES.get(source_id)
+headers = {
+    "User-Agent": (
+        "Mozilla/5.0 "
+        "(Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
+        "(KHTML, like Gecko) "
+        "Chrome/137 Safari/537.36"
+    )
+}
 
-    if not source:
-        return []
+client = httpx.AsyncClient(
+    timeout=30,
+    headers=headers,
+    follow_redirects=True
+)
 
-    try:
-        url = source['url'] + quote(keyword)
+# =====================================================
+# START
+# =====================================================
 
-        logger.info(f"Searching: {url}")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-        response = await client.get(url)
-        response.raise_for_status()
+    text = (
+        "🎬 CHÀO MỪNG ĐẾN VỚI BOT XEM PHIM\n\n"
 
-        data = response.json()
+        "🔎 Chỉ cần gửi tên phim vào chat\n\n"
 
-        logger.info(data)
+        "📌 Ví dụ:\n"
+        "• one piece\n"
+        "• batman\n"
+        "• the boys\n\n"
 
-        # Hỗ trợ nhiều kiểu JSON
-        items = (
-            data.get("items")
-            or data.get("data", {}).get("items")
-            or []
-        )
+        "📡 Bot sẽ tự tìm ở:\n"
+        "• SERVER 1 (Vietsub)\n"
+        "• SERVER 2 (Vietsub + Thuyết Minh)\n"
+        "• SERVER 3 (Vietsub + Lồng Tiếng)"
+    )
 
-        return items[:5]
+    await update.message.reply_text(text)
 
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        return []
+# =====================================================
+# MENU COMMANDS
+# =====================================================
 
-# =========================
-# COMMAND SEARCH
-# =========================
+async def setup_commands(app):
+
+    commands = [
+
+        BotCommand(
+            "start",
+            "Khởi động bot"
+        ),
+    ]
+
+    await app.bot.set_my_commands(commands)
+
+# =====================================================
+# SEARCH
+# =====================================================
+
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    keyword = update.message.text.strip()
+
+    if not keyword:
+        return
+
+    msg = await update.message.reply_text(
+        "🔎 Đang tìm phim..."
+    )
+
     try:
-        text = update.message.text.strip()
 
-        parts = text.split(maxsplit=1)
-
-        if len(parts) < 2:
-            await update.message.reply_text(
-                "📌 Cú pháp:\n"
-                "/1 tên phim\n"
-                "/2 tên phim"
-            )
-            return
-
-        source_id = parts[0][1:]
-        keyword = parts[1]
-
-        loading = await update.message.reply_text(
-            "🔍 Đang tìm phim..."
-        )
-
-        movies = await tim_phim(source_id, keyword)
-
-        if not movies:
-            await loading.edit_text("❌ Không tìm thấy phim!")
-            return
+        result_text = ""
 
         keyboard = []
 
-        for movie in movies:
+        # =================================================
+        # SERVER 1
+        # =================================================
 
-            name = movie.get("name", "Không tên")
-            slug = movie.get("slug", "")
+        try:
 
-            keyboard.append([
-                InlineKeyboardButton(
-                    text=name,
-                    callback_data=f"movie|{source_id}|{slug}"
+            url = SOURCES["1"]["search"] + keyword
+
+            r = await client.get(url)
+
+            data = r.json()
+
+            movies = data.get("items", [])
+
+            if movies:
+
+                result_text += (
+                    "📡 SERVER 1 (Vietsub)\n"
                 )
-            ])
 
-        await loading.edit_text(
-            "🎬 Chọn phim:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+                for movie in movies[:5]:
+
+                    name = movie.get(
+                        "name",
+                        "Không tên"
+                    )
+
+                    keyboard.append([
+                        InlineKeyboardButton(
+                            f"{name}",
+                            callback_data=(
+                                f"1|{movie.get('slug', '')}"
+                            )
+                        )
+                    ])
+
+                result_text += "\n"
+
+        except Exception as e:
+            print("SERVER 1 ERROR:", e)
+
+        # =================================================
+        # SERVER 2
+        # =================================================
+
+        try:
+
+            url = SOURCES["2"]["search"] + keyword
+
+            r = await client.get(url)
+
+            data = r.json()
+
+            movies = (
+                data.get("data", {})
+                .get("items", [])
+            )
+
+            if movies:
+
+                result_text += (
+                    "📡 SERVER 2 "
+                    "(Vietsub + Thuyết Minh)\n"
+                )
+
+                for movie in movies[:5]:
+
+                    name = movie.get(
+                        "name",
+                        "Không tên"
+                    )
+
+                    keyboard.append([
+                        InlineKeyboardButton(
+                            f"{name}",
+                            callback_data=(
+                                f"2|{movie.get('slug', '')}"
+                            )
+                        )
+                    ])
+
+                result_text += "\n"
+
+        except Exception as e:
+            print("SERVER 2 ERROR:", e)
+
+        # =================================================
+        # SERVER 3
+        # =================================================
+
+        try:
+
+            url = SOURCES["3"]["search"] + keyword
+
+            r = await client.get(url)
+
+            data = r.json()
+
+            movies = (
+                data.get("data", {})
+                .get("items", [])
+            )
+
+            if movies:
+
+                result_text += (
+                    "📡 SERVER 3 "
+                    "(Vietsub + Lồng Tiếng)\n"
+                )
+
+                for movie in movies[:5]:
+
+                    name = movie.get(
+                        "name",
+                        "Không tên"
+                    )
+
+                    keyboard.append([
+                        InlineKeyboardButton(
+                            f"{name}",
+                            callback_data=(
+                                f"3|{movie.get('slug', '')}"
+                            )
+                        )
+                    ])
+
+                result_text += "\n"
+
+        except Exception as e:
+            print("SERVER 3 ERROR:", e)
+
+        if not keyboard:
+
+            await msg.edit_text(
+                "❌ Không tìm thấy phim!"
+            )
+            return
+
+        await msg.edit_text(
+            result_text,
+            reply_markup=InlineKeyboardMarkup(
+                keyboard
+            )
         )
 
     except Exception as e:
-        logger.error(f"Search handler error: {e}")
 
-        await update.message.reply_text(
-            "❌ Có lỗi xảy ra!"
+        print(e)
+
+        await msg.edit_text(
+            f"❌ Lỗi tìm phim!\n\n{e}"
         )
 
-# =========================
-# BUTTON HANDLER
-# =========================
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# =====================================================
+# MOVIE DETAIL
+# =====================================================
+
+async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
 
     await query.answer()
 
+    source_id, slug = query.data.split("|")
+
     try:
-        _, source_id, slug = query.data.split("|")
 
-        source = SOURCES[source_id]
+        # =================================================
+        # NGUONC
+        # =================================================
 
-        movie_url = source['base_link'] + slug
+        if source_id == "1":
 
-        # Lấy dữ liệu lại để tìm đúng phim
-        api_url = source['url'] + quote(slug)
+            detail_url = (
+                SOURCES["1"]["detail"]
+                + slug
+            )
 
-        response = await client.get(api_url)
+            r = await client.get(detail_url)
 
-        data = response.json()
+            data = r.json()
 
-        items = (
-            data.get("items")
-            or data.get("data", {}).get("items")
-            or []
-        )
+            movie = data.get(
+                "movie",
+                {}
+            )
 
-        movie = None
+            episodes = data.get(
+                "episodes",
+                []
+            )
 
-        for item in items:
-            if item.get("slug") == slug:
-                movie = item
-                break
+            if not episodes:
 
-        if not movie:
-            await query.edit_message_text("❌ Không lấy được thông tin phim!")
-            return
+                episodes = movie.get(
+                    "episodes",
+                    []
+                )
 
-        name = movie.get("name", "Không tên")
+            name = movie.get(
+                "name",
+                "Không tên"
+            )
 
-        poster = (
-            movie.get("thumb_url")
-            or movie.get("poster_url")
-        )
+            poster = (
+                movie.get("poster_url")
+                or movie.get("thumb_url")
+            )
 
-        # Fix ảnh relative path
-        if poster and poster.startswith("/"):
-            poster = "https://phimimg.com/" + poster.lstrip("/")
+            text = f"🎬 {name}\n\n"
 
-        caption = (
-            f"🎬 {name}\n\n"
-            f"🌐 Nguồn: {source['name']}\n"
-            f"🔗 {movie_url}"
-        )
+            found = False
+
+            for server in episodes:
+
+                server_name = server.get(
+                    "server_name",
+                    "Server"
+                )
+
+                items = server.get(
+                    "items",
+                    []
+                )
+
+                for ep in items:
+
+                    ep_name = ep.get(
+                        "name",
+                        "FULL"
+                    )
+
+                    embed = ep.get(
+                        "embed",
+                        ""
+                    )
+
+                    if embed:
+
+                        found = True
+
+                        text += (
+                            f"🎞 {ep_name}\n"
+                            f"📡 {server_name}\n\n"
+                            f"🎬 XEM NGAY:\n"
+                            f"{embed}\n\n"
+                        )
+
+            if not found:
+
+                text += "❌ Không tìm thấy player"
+
+        # =================================================
+        # OPHIM + KKPHIM
+        # =================================================
+
+        else:
+
+            detail_url = (
+                SOURCES[source_id]["detail"]
+                + slug
+            )
+
+            r = await client.get(detail_url)
+
+            data = r.json()
+
+            movie = data.get(
+                "movie",
+                {}
+            )
+
+            episodes = data.get(
+                "episodes",
+                []
+            )
+
+            name = movie.get(
+                "name",
+                "Không tên"
+            )
+
+            poster = (
+                movie.get("poster_url")
+                or movie.get("thumb_url")
+            )
+
+            if (
+                poster
+                and not poster.startswith("http")
+            ):
+
+                poster = (
+                    "https://phimimg.com/"
+                    + poster.lstrip("/")
+                )
+
+            text = f"🎬 {name}\n\n"
+
+            found = False
+
+            for server in episodes:
+
+                server_name = server.get(
+                    "server_name",
+                    "Server"
+                )
+
+                items = (
+                    server.get("server_data", [])
+                    or server.get("items", [])
+                )
+
+                for ep in items:
+
+                    ep_name = ep.get(
+                        "name",
+                        "FULL"
+                    )
+
+                    embed = (
+                        ep.get("link_embed")
+                        or ep.get("embed")
+                    )
+
+                    if embed:
+
+                        found = True
+
+                        text += (
+                            f"🎞 {ep_name}\n"
+                            f"📡 {server_name}\n\n"
+                            f"🎬 XEM NGAY:\n"
+                            f"{embed}\n\n"
+                        )
+
+            if not found:
+
+                text += "❌ Không tìm thấy player"
+
+        # =====================================================
+        # SEND
+        # =====================================================
 
         if poster:
 
             try:
+
                 await query.message.reply_photo(
                     photo=poster,
-                    caption=caption
+                    caption=text
                 )
 
             except Exception as e:
-                logger.error(f"Photo error: {e}")
 
-                await query.message.reply_text(caption)
+                print(e)
+
+                await query.message.reply_text(
+                    text
+                )
 
         else:
-            await query.message.reply_text(caption)
+
+            await query.message.reply_text(
+                text
+            )
 
     except Exception as e:
 
-        logger.error(f"Button handler error: {e}")
+        print(e)
 
-        await query.edit_message_text(
-            "❌ Có lỗi xảy ra!"
+        await query.message.reply_text(
+            f"❌ Lỗi lấy thông tin phim!\n\n{e}"
         )
 
-# =========================
-# WEB SERVER
-# =========================
-async def home(request):
-    return web.Response(text="Bot is running!")
-
-# =========================
+# =====================================================
 # MAIN
-# =========================
-async def main():
+# =====================================================
 
-    app = ApplicationBuilder().token(TOKEN).build()
+if not TOKEN:
+    raise ValueError("Thiếu BOT_TOKEN")
 
-    app.add_handler(CommandHandler(['1', '2'], search))
+app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(
-        CallbackQueryHandler(
-            button_handler,
-            pattern=r"^movie\|"
-        )
+app.add_handler(
+    CommandHandler("start", start)
+)
+
+app.add_handler(
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        search
     )
+)
 
-    # Web server cho Render
-    web_app = web.Application()
+app.add_handler(
+    CallbackQueryHandler(movie_detail)
+)
 
-    web_app.router.add_get("/", home)
+app.post_init = setup_commands
 
-    runner = web.AppRunner(web_app)
+print("Bot đang chạy...")
 
-    await runner.setup()
-
-    site = web.TCPSite(
-        runner,
-        "0.0.0.0",
-        PORT
-    )
-
-    await site.start()
-
-    logger.info(f"Web server running on port {PORT}")
-
-    # Start bot
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-
-    logger.info("Bot started!")
-
-    while True:
-        await asyncio.sleep(3600)
-
-# =========================
-# RUN
-# =========================
-if __name__ == "__main__":
-    asyncio.run(main())
+app.run_polling()
