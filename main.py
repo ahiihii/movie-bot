@@ -673,22 +673,47 @@ app.add_handler(
 
 app.post_init = setup_commands
 
+# =====================================================
+# MAIN
+# =====================================================
+
+if not TOKEN:
+    raise ValueError(
+        "Thiếu BOT_TOKEN"
+    )
+
+app = (
+    ApplicationBuilder()
+    .token(TOKEN)
+    .build()
+)
+
+app.add_handler(
+    CommandHandler(
+        "start",
+        start
+    )
+)
+
+app.add_handler(
+    MessageHandler(
+        filters.TEXT
+        & ~filters.COMMAND,
+        search
+    )
+)
+
+app.add_handler(
+    CallbackQueryHandler(
+        movie_detail
+    )
+)
+
+app.post_init = setup_commands
+
 print("BOT STARTING...")
 print("Bot đang chạy...")
 
-async def main():
-
-    await app.initialize()
-
-    await app.start()
-
-    await app.updater.start_polling(
-        drop_pending_updates=True
-    )
-
-    print("BOT ĐÃ ONLINE")
-
-    while True:
-        await asyncio.sleep(3600)
-
-asyncio.run(main())
+app.run_polling(
+    drop_pending_updates=True
+)
