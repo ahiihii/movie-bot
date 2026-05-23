@@ -164,38 +164,6 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"❌ Lỗi lấy thông tin phim!\n\n{e}")
 
 # =====================================================
-# MAIN ASYNC FUNCTION
-# =====================================================
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search))
-    app.add_handler(CallbackQueryHandler(movie_detail))
-    app.post_init = setup_commands
-
-    PORT = int(os.environ.get("PORT", 10000))
-    APP_NAME = "movie-bot-tzd8"
-    WEBHOOK_SECRET = "superbotfilm"
-
-    print("BOT STARTING WITH WEBHOOK...")
-
-    await app.initialize()
-    await app.start_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=f"webhook/{WEBHOOK_SECRET}",
-        webhook_url=f"https://{APP_NAME}.onrender.com/webhook/{WEBHOOK_SECRET}",
-        secret_token=WEBHOOK_SECRET,
-        drop_pending_updates=True,
-    )
-    print("BOT ONLINE")
-    await app.idle()
-
-# =====================================================
-# RUN ASYNC
-# =====================================================
-if __name__ == "__main__":
-# =====================================================
 # MAIN
 # =====================================================
 
