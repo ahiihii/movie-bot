@@ -261,8 +261,31 @@ async def search(
                     )
                 ])
 
+            # =========================
+            # CHECK THUYET MINH
+            # =========================
+
+            server_label = "📡 SERVER 2"
+
+            movie_text = str(movies).lower()
+
+            if (
+                "thuyết minh" in movie_text
+                or "thuyet minh" in movie_text
+            ):
+
+                server_label += (
+                    " (Vietsub + Thuyết Minh)"
+                )
+
+            else:
+
+                server_label += (
+                    " (Vietsub)"
+                )
+
             await update.message.reply_text(
-                "📡 SERVER 2 (Vietsub + Thuyết Minh)",
+                server_label,
                 reply_markup=InlineKeyboardMarkup(
                     keyboard
                 )
@@ -314,8 +337,31 @@ async def search(
                     )
                 ])
 
+            # =========================
+            # CHECK LONG TIENG
+            # =========================
+
+            server_label = "📡 SERVER 3"
+
+            movie_text = str(movies).lower()
+
+            if (
+                "lồng tiếng" in movie_text
+                or "long tieng" in movie_text
+            ):
+
+                server_label += (
+                    " (Vietsub + Lồng Tiếng)"
+                )
+
+            else:
+
+                server_label += (
+                    " (Vietsub)"
+                )
+
             await update.message.reply_text(
-                "📡 SERVER 3 (Vietsub + Lồng Tiếng)",
+                server_label,
                 reply_markup=InlineKeyboardMarkup(
                     keyboard
                 )
