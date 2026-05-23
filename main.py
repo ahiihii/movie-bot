@@ -155,203 +155,189 @@ async def search(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
-    keyword = (
-        update.message.text.strip()
-    )
+    keyword = update.message.text.strip()
 
     if not keyword:
         return
 
-    msg = await update.message.reply_text(
+    wait_msg = await update.message.reply_text(
         "🔎 Đang tìm phim..."
     )
 
+    found_any = False
+
+    # =================================================
+    # SERVER 1
+    # =================================================
+
     try:
 
-        keyboard = []
-
-        result_text = (
-            "🎬 Kết quả tìm kiếm:\n\n"
+        url = (
+            SOURCES["1"]["search"]
+            + keyword
         )
 
-        # =================================================
-        # SERVER 1
-        # =================================================
+        r = await client.get(url)
 
-        try:
+        data = r.json()
 
-            url = (
-                SOURCES["1"]["search"]
-                + keyword
-            )
-
-            r = await client.get(url)
-
-            data = r.json()
-
-            movies = data.get(
-                "items",
-                []
-            )
-
-            if movies:
-
-                result_text += (
-                    "📡 SERVER 1 "
-                    "(Vietsub)\n"
-                )
-
-                for movie in movies[:5]:
-
-                    name = movie.get(
-                        "name",
-                        "Không tên"
-                    )
-
-                    keyboard.append([
-                        InlineKeyboardButton(
-                            f"{name}",
-                            callback_data=(
-                                f"1|"
-                                f"{movie.get('slug', '')}"
-                            )
-                        )
-                    ])
-
-                result_text += "\n"
-
-        except Exception as e:
-            print(
-                "SERVER 1 ERROR:",
-                e
-            )
-
-        # =================================================
-        # SERVER 2
-        # =================================================
-
-        try:
-
-            url = (
-                SOURCES["2"]["search"]
-                + keyword
-            )
-
-            r = await client.get(url)
-
-            data = r.json()
-
-            movies = (
-                data.get("data", {})
-                .get("items", [])
-            )
-
-            if movies:
-
-                result_text += (
-                    "📡 SERVER 2 "
-                    "(Vietsub + Thuyết Minh)\n"
-                )
-
-                for movie in movies[:5]:
-
-                    name = movie.get(
-                        "name",
-                        "Không tên"
-                    )
-
-                    keyboard.append([
-                        InlineKeyboardButton(
-                            f"{name}",
-                            callback_data=(
-                                f"2|"
-                                f"{movie.get('slug', '')}"
-                            )
-                        )
-                    ])
-
-                result_text += "\n"
-
-        except Exception as e:
-            print(
-                "SERVER 2 ERROR:",
-                e
-            )
-
-        # =================================================
-        # SERVER 3
-        # =================================================
-
-        try:
-
-            url = (
-                SOURCES["3"]["search"]
-                + keyword
-            )
-
-            r = await client.get(url)
-
-            data = r.json()
-
-            movies = (
-                data.get("data", {})
-                .get("items", [])
-            )
-
-            if movies:
-
-                result_text += (
-                    "📡 SERVER 3 "
-                    "(Vietsub + Lồng Tiếng)\n"
-                )
-
-                for movie in movies[:5]:
-
-                    name = movie.get(
-                        "name",
-                        "Không tên"
-                    )
-
-                    keyboard.append([
-                        InlineKeyboardButton(
-                            f"{name}",
-                            callback_data=(
-                                f"3|"
-                                f"{movie.get('slug', '')}"
-                            )
-                        )
-                    ])
-
-                result_text += "\n"
-
-        except Exception as e:
-            print(
-                "SERVER 3 ERROR:",
-                e
-            )
-
-        if not keyboard:
-
-            await msg.edit_text(
-                "❌ Không tìm thấy phim!"
-            )
-            return
-
-        await msg.edit_text(
-            result_text,
-            reply_markup=InlineKeyboardMarkup(
-                keyboard
-            )
+        movies = data.get(
+            "items",
+            []
         )
+
+        if movies:
+
+            found_any = True
+
+            keyboard = []
+
+            for movie in movies[:5]:
+
+                name = movie.get(
+                    "name",
+                    "Không tên"
+                )
+
+                keyboard.append([
+                    InlineKeyboardButton(
+                        name,
+                        callback_data=(
+                            f"1|{movie.get('slug', '')}"
+                        )
+                    )
+                ])
+
+            await update.message.reply_text(
+                "📡 SERVER 1 (Vietsub)",
+                reply_markup=InlineKeyboardMarkup(
+                    keyboard
+                )
+            )
 
     except Exception as e:
 
-        print(e)
+        print("SERVER 1 ERROR:", e)
 
-        await msg.edit_text(
-            f"❌ Lỗi tìm phim!\n\n{e}"
+    # =================================================
+    # SERVER 2
+    # =================================================
+
+    try:
+
+        url = (
+            SOURCES["2"]["search"]
+            + keyword
         )
 
+        r = await client.get(url)
+
+        data = r.json()
+
+        movies = (
+            data.get("data", {})
+            .get("items", [])
+        )
+
+        if movies:
+
+            found_any = True
+
+            keyboard = []
+
+            for movie in movies[:5]:
+
+                name = movie.get(
+                    "name",
+                    "Không tên"
+                )
+
+                keyboard.append([
+                    InlineKeyboardButton(
+                        name,
+                        callback_data=(
+                            f"2|{movie.get('slug', '')}"
+                        )
+                    )
+                ])
+
+            await update.message.reply_text(
+                "📡 SERVER 2 (Vietsub + Thuyết Minh)",
+                reply_markup=InlineKeyboardMarkup(
+                    keyboard
+                )
+            )
+
+    except Exception as e:
+
+        print("SERVER 2 ERROR:", e)
+
+    # =================================================
+    # SERVER 3
+    # =================================================
+
+    try:
+
+        url = (
+            SOURCES["3"]["search"]
+            + keyword
+        )
+
+        r = await client.get(url)
+
+        data = r.json()
+
+        movies = (
+            data.get("data", {})
+            .get("items", [])
+        )
+
+        if movies:
+
+            found_any = True
+
+            keyboard = []
+
+            for movie in movies[:5]:
+
+                name = movie.get(
+                    "name",
+                    "Không tên"
+                )
+
+                keyboard.append([
+                    InlineKeyboardButton(
+                        name,
+                        callback_data=(
+                            f"3|{movie.get('slug', '')}"
+                        )
+                    )
+                ])
+
+            await update.message.reply_text(
+                "📡 SERVER 3 (Vietsub + Lồng Tiếng)",
+                reply_markup=InlineKeyboardMarkup(
+                    keyboard
+                )
+            )
+
+    except Exception as e:
+
+        print("SERVER 3 ERROR:", e)
+
+    # =================================================
+    # NO RESULT
+    # =================================================
+
+    if not found_any:
+
+        await wait_msg.edit_text(
+            "❌ Không tìm thấy phim!"
+        )
+
+    else:
+
+        await wait_msg.delete()
 # =====================================================
 # MOVIE DETAIL
 # =====================================================
