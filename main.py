@@ -16,40 +16,6 @@ from telegram.ext import (
 
 import httpx
 import os
-import asyncio
-
-asyncio.set_event_loop(
-    asyncio.new_event_loop()
-)
-
-# =====================================================
-# RENDER ANTI SLEEP
-# =====================================================
-
-from flask import Flask
-from threading import Thread
-
-web = Flask(__name__)
-
-@web.route("/")
-def home():
-    return "Bot is running!"
-
-def run_web():
-
-    port = int(
-        os.environ.get("PORT", 10000)
-    )
-
-    web.run(
-        host="0.0.0.0",
-        port=port
-    )
-
-Thread(
-    target=run_web,
-    daemon=True
-).start()
 
 # =====================================================
 # TOKEN
@@ -639,43 +605,6 @@ async def movie_detail(
             f"❌ Lỗi lấy thông tin phim!\n\n{e}"
         )
 
-# =====================================================
-# MAIN
-# =====================================================
-
-if not TOKEN:
-    raise ValueError(
-        "Thiếu BOT_TOKEN"
-    )
-
-app = (
-    ApplicationBuilder()
-    .token(TOKEN)
-    .build()
-)
-
-app.add_handler(
-    CommandHandler(
-        "start",
-        start
-    )
-)
-
-app.add_handler(
-    MessageHandler(
-        filters.TEXT
-        & ~filters.COMMAND,
-        search
-    )
-)
-
-app.add_handler(
-    CallbackQueryHandler(
-        movie_detail
-    )
-)
-
-app.post_init = setup_commands
 
 # =====================================================
 # MAIN
@@ -724,21 +653,14 @@ if __name__ == "__main__":
 
     WEBHOOK_SECRET = "superbotfilm"
 
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        secret_token=WEBHOOK_SECRET,
-        webhook_url=(
-            f"https://{APP_NAME}.onrender.com/"
-            f"{WEBHOOK_SECRET}"
-        )
-    )
-
-app.post_init = setup_commands
-
-print("BOT STARTING...")
-print("Bot đang chạy...")
-
-app.run_polling(
+   app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    url_path=f"webhook/{WEBHOOK_SECRET}",
+    webhook_url=(
+        f"https://{APP_NAME}.onrender.com/"
+        f"webhook/{WEBHOOK_SECRET}"
+    ),
+    secret_token=WEBHOOK_SECRET,
     drop_pending_updates=True
 )
