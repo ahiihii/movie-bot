@@ -24,10 +24,7 @@ import asyncio
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-if not TOKEN:
-    raise ValueError("Thiếu BOT_TOKEN")
-
-print("BOT STARTING...")
+print("TOKEN =", TOKEN)
 
 # =====================================================
 # SOURCES
@@ -72,7 +69,7 @@ headers = {
 }
 
 client = httpx.AsyncClient(
-    timeout=30,
+    timeout=15,
     headers=headers,
     follow_redirects=True
 )
@@ -87,7 +84,7 @@ async def start(
 ):
 
     text = (
-        "🎬 CHÀO MỪNG ĐẾN VỚI SUPER BOT FILM\n\n"
+        "🎬 CHÀO MỪNG ĐẾN VỚI BOT XEM PHIM\n\n"
 
         "🔎 Chỉ cần gửi tên phim vào chat\n\n"
 
@@ -111,7 +108,6 @@ async def start(
 async def setup_commands(app):
 
     commands = [
-
         BotCommand(
             "start",
             "Khởi động bot"
@@ -144,28 +140,17 @@ async def search(
 
         try:
 
-            url = (
-                SOURCES[sid]["search"]
-                + keyword
-            )
+            url = SOURCES[sid]["search"] + keyword
 
             r = await client.get(url)
 
             data = r.json()
 
-            if sid == "1":
-
-                movies = data.get(
-                    "items",
-                    []
-                )
-
-            else:
-
-                movies = (
-                    data.get("data", {})
-                    .get("items", [])
-                )
+            movies = (
+                data.get("items", [])
+                if sid == "1"
+                else data.get("data", {}).get("items", [])
+            )
 
             if movies:
 
@@ -175,63 +160,18 @@ async def search(
 
                 for movie in movies[:5]:
 
-                    name = movie.get(
-                        "name",
-                        "Không tên"
-                    )
-
                     keyboard.append([
                         InlineKeyboardButton(
-                            name,
-                            callback_data=(
-                                f"{sid}|{movie.get('slug', '')}"
-                            )
+                            movie.get("name", "Không tên"),
+                            callback_data=f"{sid}|{movie.get('slug', '')}"
                         )
                     ])
 
                 server_label = f"📡 SERVER {sid}"
 
-                movie_text = str(movies).lower()
-
-                if sid == "2":
-
-                    if (
-                        "thuyết minh" in movie_text
-                        or "thuyet minh" in movie_text
-                    ):
-
-                        server_label += (
-                            " (Vietsub + Thuyết Minh)"
-                        )
-
-                    else:
-
-                        server_label += (
-                            " (Vietsub)"
-                        )
-
-                if sid == "3":
-
-                    if (
-                        "lồng tiếng" in movie_text
-                        or "long tieng" in movie_text
-                    ):
-
-                        server_label += (
-                            " (Vietsub + Lồng Tiếng)"
-                        )
-
-                    else:
-
-                        server_label += (
-                            " (Vietsub)"
-                        )
-
                 await update.message.reply_text(
                     server_label,
-                    reply_markup=InlineKeyboardMarkup(
-                        keyboard
-                    )
+                    reply_markup=InlineKeyboardMarkup(keyboard)
                 )
 
         except Exception as e:
@@ -261,9 +201,7 @@ async def movie_detail(
 
     await query.answer()
 
-    source_id, slug = (
-        query.data.split("|")
-    )
+    source_id, slug = query.data.split("|")
 
     try:
 
@@ -272,16 +210,11 @@ async def movie_detail(
             + slug
         )
 
-        r = await client.get(
-            detail_url
-        )
+        r = await client.get(detail_url)
 
         data = r.json()
 
-        movie = data.get(
-            "movie",
-            {}
-        )
+        movie = data.get("movie", {})
 
         episodes = (
             data.get("episodes", [])
@@ -298,19 +231,14 @@ async def movie_detail(
             or movie.get("thumb_url")
         )
 
-        if (
-            poster
-            and not poster.startswith("http")
-        ):
+        if poster and not poster.startswith("http"):
 
             poster = (
                 "https://phimimg.com/"
                 + poster.lstrip("/")
             )
 
-        text = (
-            f"🎬 {name}\n\n"
-        )
+        text = f"🎬 {name}\n\n"
 
         found = False
 
@@ -321,21 +249,12 @@ async def movie_detail(
                 "Server"
             )
 
-            items = server.get(
-                "server_data",
-                []
+            items = (
+                server.get("server_data", [])
+                or server.get("items", [])
             )
 
-            if not items:
-
-                items = server.get(
-                    "items",
-                    []
-                )
-
             for ep in items:
-
-                print(ep)
 
                 ep_name = ep.get(
                     "name",
@@ -344,8 +263,8 @@ async def movie_detail(
 
                 embed = (
                     ep.get("link_embed")
-                    or ep.get("link_m3u8")
                     or ep.get("embed")
+                    or ep.get("link_m3u8")
                 )
 
                 if embed:
@@ -355,42 +274,38 @@ async def movie_detail(
                     text += (
                         f"🎞 {ep_name}\n"
                         f"📡 {server_name}\n\n"
-                        f"🎬 XEM NGAY:\n"
                         f"{embed}\n\n"
                     )
 
         if not found:
 
-            text += (
-                "❌ Không tìm thấy player"
-            )
-
-        # =================================================
-        # SEND
-        # =================================================
+            text += "❌ Không tìm thấy link!"
 
         if poster:
 
             try:
 
                 await query.message.reply_photo(
-                    photo=poster
+                    photo=poster,
+                    caption=text
                 )
 
             except Exception as e:
 
-                print("PHOTO ERROR:", e)
+                print(e)
 
-        await query.message.reply_text(
-            text[:4000]
-        )
+                await query.message.reply_text(text)
+
+        else:
+
+            await query.message.reply_text(text)
 
     except Exception as e:
 
-        print("MOVIE DETAIL ERROR:", e)
+        print(e)
 
         await query.message.reply_text(
-            f"❌ Lỗi lấy thông tin phim!\n\n{e}"
+            f"❌ Lỗi:\n{e}"
         )
 
 # =====================================================
