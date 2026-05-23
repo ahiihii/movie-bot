@@ -359,10 +359,10 @@ if __name__ == "__main__":
     app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        url_path=f"webhook/{WEBHOOK_SECRET}",
+        url_path=f"/webhook/{WEBHOOK_SECRET}",
         webhook_url=(
             f"https://{APP_NAME}.onrender.com/"
-            f"webhook/{WEBHOOK_SECRET}"
+            f"/webhook/{WEBHOOK_SECRET}"
         ),
         secret_token=WEBHOOK_SECRET,
         drop_pending_updates=True
