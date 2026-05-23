@@ -16,6 +16,7 @@ from telegram.ext import (
 
 import httpx
 import os
+import asyncio
 
 # =====================================================
 # RENDER ANTI SLEEP
@@ -167,9 +168,11 @@ async def search(
 
     try:
 
-        result_text = ""
-
         keyboard = []
+
+        result_text = (
+            "🎬 Kết quả tìm kiếm:\n\n"
+        )
 
         # =================================================
         # SERVER 1
@@ -641,6 +644,19 @@ app.post_init = setup_commands
 print("BOT STARTING...")
 print("Bot đang chạy...")
 
-app.run_polling(
-    drop_pending_updates=True
-)
+async def main():
+
+    await app.initialize()
+
+    await app.start()
+
+    await app.updater.start_polling(
+        drop_pending_updates=True
+    )
+
+    print("BOT ĐÃ ONLINE")
+
+    while True:
+        await asyncio.sleep(3600)
+
+asyncio.run(main())
