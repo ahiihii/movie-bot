@@ -31,15 +31,28 @@ def home():
     return "Bot is running!"
 
 def run_web():
-    web.run(host="0.0.0.0", port=10000)
 
-Thread(target=run_web).start()
+    port = int(
+        os.environ.get("PORT", 10000)
+    )
+
+    web.run(
+        host="0.0.0.0",
+        port=port
+    )
+
+Thread(
+    target=run_web,
+    daemon=True
+).start()
 
 # =====================================================
 # TOKEN
 # =====================================================
 
 TOKEN = os.getenv("BOT_TOKEN")
+
+print("TOKEN =", TOKEN)
 
 # =====================================================
 # SOURCES
@@ -93,7 +106,10 @@ client = httpx.AsyncClient(
 # START
 # =====================================================
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     text = (
         "🎬 CHÀO MỪNG ĐẾN VỚI BOT XEM PHIM\n\n"
@@ -133,9 +149,14 @@ async def setup_commands(app):
 # SEARCH
 # =====================================================
 
-async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def search(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
-    keyword = update.message.text.strip()
+    keyword = (
+        update.message.text.strip()
+    )
 
     if not keyword:
         return
@@ -156,18 +177,25 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
 
-            url = SOURCES["1"]["search"] + keyword
+            url = (
+                SOURCES["1"]["search"]
+                + keyword
+            )
 
             r = await client.get(url)
 
             data = r.json()
 
-            movies = data.get("items", [])
+            movies = data.get(
+                "items",
+                []
+            )
 
             if movies:
 
                 result_text += (
-                    "📡 SERVER 1 (Vietsub)\n"
+                    "📡 SERVER 1 "
+                    "(Vietsub)\n"
                 )
 
                 for movie in movies[:5]:
@@ -181,7 +209,8 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         InlineKeyboardButton(
                             f"{name}",
                             callback_data=(
-                                f"1|{movie.get('slug', '')}"
+                                f"1|"
+                                f"{movie.get('slug', '')}"
                             )
                         )
                     ])
@@ -189,7 +218,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 result_text += "\n"
 
         except Exception as e:
-            print("SERVER 1 ERROR:", e)
+            print(
+                "SERVER 1 ERROR:",
+                e
+            )
 
         # =================================================
         # SERVER 2
@@ -197,7 +229,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
 
-            url = SOURCES["2"]["search"] + keyword
+            url = (
+                SOURCES["2"]["search"]
+                + keyword
+            )
 
             r = await client.get(url)
 
@@ -226,7 +261,8 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         InlineKeyboardButton(
                             f"{name}",
                             callback_data=(
-                                f"2|{movie.get('slug', '')}"
+                                f"2|"
+                                f"{movie.get('slug', '')}"
                             )
                         )
                     ])
@@ -234,7 +270,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 result_text += "\n"
 
         except Exception as e:
-            print("SERVER 2 ERROR:", e)
+            print(
+                "SERVER 2 ERROR:",
+                e
+            )
 
         # =================================================
         # SERVER 3
@@ -242,7 +281,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
 
-            url = SOURCES["3"]["search"] + keyword
+            url = (
+                SOURCES["3"]["search"]
+                + keyword
+            )
 
             r = await client.get(url)
 
@@ -271,7 +313,8 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         InlineKeyboardButton(
                             f"{name}",
                             callback_data=(
-                                f"3|{movie.get('slug', '')}"
+                                f"3|"
+                                f"{movie.get('slug', '')}"
                             )
                         )
                     ])
@@ -279,7 +322,10 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 result_text += "\n"
 
         except Exception as e:
-            print("SERVER 3 ERROR:", e)
+            print(
+                "SERVER 3 ERROR:",
+                e
+            )
 
         if not keyboard:
 
@@ -307,13 +353,18 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MOVIE DETAIL
 # =====================================================
 
-async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def movie_detail(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     query = update.callback_query
 
     await query.answer()
 
-    source_id, slug = query.data.split("|")
+    source_id, slug = (
+        query.data.split("|")
+    )
 
     try:
 
@@ -328,7 +379,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 + slug
             )
 
-            r = await client.get(detail_url)
+            r = await client.get(
+                detail_url
+            )
 
             data = r.json()
 
@@ -359,7 +412,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 or movie.get("thumb_url")
             )
 
-            text = f"🎬 {name}\n\n"
+            text = (
+                f"🎬 {name}\n\n"
+            )
 
             found = False
 
@@ -400,7 +455,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if not found:
 
-                text += "❌ Không tìm thấy player"
+                text += (
+                    "❌ Không tìm thấy player"
+                )
 
         # =================================================
         # OPHIM + KKPHIM
@@ -413,7 +470,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 + slug
             )
 
-            r = await client.get(detail_url)
+            r = await client.get(
+                detail_url
+            )
 
             data = r.json()
 
@@ -439,7 +498,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if (
                 poster
-                and not poster.startswith("http")
+                and not poster.startswith(
+                    "http"
+                )
             ):
 
                 poster = (
@@ -447,7 +508,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     + poster.lstrip("/")
                 )
 
-            text = f"🎬 {name}\n\n"
+            text = (
+                f"🎬 {name}\n\n"
+            )
 
             found = False
 
@@ -459,8 +522,14 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 items = (
-                    server.get("server_data", [])
-                    or server.get("items", [])
+                    server.get(
+                        "server_data",
+                        []
+                    )
+                    or server.get(
+                        "items",
+                        []
+                    )
                 )
 
                 for ep in items:
@@ -471,8 +540,12 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
 
                     embed = (
-                        ep.get("link_embed")
-                        or ep.get("embed")
+                        ep.get(
+                            "link_embed"
+                        )
+                        or ep.get(
+                            "embed"
+                        )
                     )
 
                     if embed:
@@ -488,7 +561,9 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if not found:
 
-                text += "❌ Không tìm thấy player"
+                text += (
+                    "❌ Không tìm thấy player"
+                )
 
         # =====================================================
         # SEND
@@ -530,27 +605,42 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================================
 
 if not TOKEN:
-    raise ValueError("Thiếu BOT_TOKEN")
+    raise ValueError(
+        "Thiếu BOT_TOKEN"
+    )
 
-app = ApplicationBuilder().token(TOKEN).build()
+app = (
+    ApplicationBuilder()
+    .token(TOKEN)
+    .build()
+)
 
 app.add_handler(
-    CommandHandler("start", start)
+    CommandHandler(
+        "start",
+        start
+    )
 )
 
 app.add_handler(
     MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
+        filters.TEXT
+        & ~filters.COMMAND,
         search
     )
 )
 
 app.add_handler(
-    CallbackQueryHandler(movie_detail)
+    CallbackQueryHandler(
+        movie_detail
+    )
 )
 
 app.post_init = setup_commands
 
+print("BOT STARTING...")
 print("Bot đang chạy...")
 
-app.run_polling()
+app.run_polling(
+    drop_pending_updates=True
+)
