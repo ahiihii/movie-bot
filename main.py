@@ -141,28 +141,36 @@ async def movie_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
             poster = "https://phimimg.com/" + poster.lstrip("/")
         text = f"🎬 {name}\n\n"
         found = False
-        for server in episodes:
-            server_name = server.get("server_name", "Server")
-            items = server.get("server_data", []) or server.get("items", [])
-            for ep in items:
-                ep_name = ep.get("name", "FULL")
-                embed = ep.get("link_embed") or ep.get("embed")
-                if embed:
-                    found = True
-                    text += f"🎞 {ep_name}\n📡 {server_name}\n\n🎬 XEM NGAY:\n{embed}\n\n"
-        if not found:
-            text += "❌ Không tìm thấy player"
-        if poster:
-            try:
-                await query.message.reply_photo(photo=poster, caption=text)
-            except:
-                await query.message.reply_text(text)
-        else:
-            await query.message.reply_text(text)
-    except Exception as e:
-        print(e)
-        await query.message.reply_text(f"❌ Lỗi lấy thông tin phim!\n\n{e}")
+    for server in episodes:
 
+    server_name = server.get(
+        "server_name",
+        "Server"
+    )
+
+    items = server.get(
+        "server_data",
+        []
+    )
+
+    if not items:
+        items = server.get(
+            "items",
+            []
+        )
+
+    for ep in items:
+
+        ep_name = ep.get(
+            "name",
+            "FULL"
+        )
+
+        embed = (
+            ep.get("link_embed")
+            or ep.get("link_m3u8")
+            or ep.get("embed")
+        )
 # =====================================================
 # MAIN
 # =====================================================
