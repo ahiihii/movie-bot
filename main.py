@@ -681,37 +681,58 @@ app.post_init = setup_commands
 # MAIN
 # =====================================================
 
-if not TOKEN:
-    raise ValueError(
-        "Thiếu BOT_TOKEN"
+if __name__ == "__main__":
+
+    if not TOKEN:
+        raise ValueError("Thiếu BOT_TOKEN")
+
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .build()
     )
 
-app = (
-    ApplicationBuilder()
-    .token(TOKEN)
-    .build()
-)
-
-app.add_handler(
-    CommandHandler(
-        "start",
-        start
+    app.add_handler(
+        CommandHandler(
+            "start",
+            start
+        )
     )
-)
 
-app.add_handler(
-    MessageHandler(
-        filters.TEXT
-        & ~filters.COMMAND,
-        search
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            search
+        )
     )
-)
 
-app.add_handler(
-    CallbackQueryHandler(
-        movie_detail
+    app.add_handler(
+        CallbackQueryHandler(
+            movie_detail
+        )
     )
-)
+
+    app.post_init = setup_commands
+
+    print("BOT STARTING WITH WEBHOOK...")
+
+    PORT = int(
+        os.environ.get("PORT", 10000)
+    )
+
+    APP_NAME = "movie-bot-tzd8"
+
+    WEBHOOK_SECRET = "superbotfilm"
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        secret_token=WEBHOOK_SECRET,
+        webhook_url=(
+            f"https://{APP_NAME}.onrender.com/"
+            f"{WEBHOOK_SECRET}"
+        )
+    )
 
 app.post_init = setup_commands
 
