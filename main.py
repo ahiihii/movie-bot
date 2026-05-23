@@ -195,4 +195,64 @@ async def main():
 # RUN ASYNC
 # =====================================================
 if __name__ == "__main__":
-    asyncio.run(main())
+# =====================================================
+# MAIN
+# =====================================================
+
+if __name__ == "__main__":
+
+    import asyncio
+
+    asyncio.set_event_loop(
+        asyncio.new_event_loop()
+    )
+
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .build()
+    )
+
+    app.add_handler(
+        CommandHandler(
+            "start",
+            start
+        )
+    )
+
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            search
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            movie_detail
+        )
+    )
+
+    app.post_init = setup_commands
+
+    PORT = int(
+        os.environ.get("PORT", 10000)
+    )
+
+    APP_NAME = "movie-bot-super"
+
+    WEBHOOK_SECRET = "superbotfilm"
+
+    print("BOT STARTING WITH WEBHOOK...")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=f"webhook/{WEBHOOK_SECRET}",
+        webhook_url=(
+            f"https://{APP_NAME}.onrender.com/"
+            f"webhook/{WEBHOOK_SECRET}"
+        ),
+        secret_token=WEBHOOK_SECRET,
+        drop_pending_updates=True
+    )
