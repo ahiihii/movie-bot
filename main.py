@@ -23,7 +23,10 @@ import os
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-print("TOKEN =", TOKEN)
+if not TOKEN:
+    raise ValueError("Thiếu BOT_TOKEN")
+
+print("BOT STARTING...")
 
 # =====================================================
 # SOURCES
@@ -83,7 +86,7 @@ async def start(
 ):
 
     text = (
-        "🎬 CHÀO MỪNG ĐẾN VỚI BOT XEM PHIM\n\n"
+        "🎬 CHÀO MỪNG ĐẾN VỚI SUPER BOT FILM\n\n"
 
         "🔎 Chỉ cần gửi tên phim vào chat\n\n"
 
@@ -101,7 +104,7 @@ async def start(
     await update.message.reply_text(text)
 
 # =====================================================
-# MENU COMMANDS
+# COMMANDS
 # =====================================================
 
 async def setup_commands(app):
@@ -231,10 +234,6 @@ async def search(
                     )
                 ])
 
-            # =========================
-            # CHECK THUYET MINH
-            # =========================
-
             server_label = "📡 SERVER 2"
 
             movie_text = str(movies).lower()
@@ -307,10 +306,6 @@ async def search(
                     )
                 ])
 
-            # =========================
-            # CHECK LONG TIENG
-            # =========================
-
             server_label = "📡 SERVER 3"
 
             movie_text = str(movies).lower()
@@ -354,6 +349,7 @@ async def search(
     else:
 
         await wait_msg.delete()
+
 # =====================================================
 # MOVIE DETAIL
 # =====================================================
@@ -372,10 +368,6 @@ async def movie_detail(
     )
 
     try:
-
-        # =================================================
-        # NGUONC
-        # =================================================
 
         if source_id == "1":
 
@@ -407,67 +399,6 @@ async def movie_detail(
                     []
                 )
 
-            name = movie.get(
-                "name",
-                "Không tên"
-            )
-
-            poster = (
-                movie.get("poster_url")
-                or movie.get("thumb_url")
-            )
-
-            text = (
-                f"🎬 {name}\n\n"
-            )
-
-            found = False
-
-            for server in episodes:
-
-                server_name = server.get(
-                    "server_name",
-                    "Server"
-                )
-
-                items = server.get(
-                    "items",
-                    []
-                )
-
-                for ep in items:
-
-                    ep_name = ep.get(
-                        "name",
-                        "FULL"
-                    )
-
-                    embed = ep.get(
-                        "embed",
-                        ""
-                    )
-
-                    if embed:
-
-                        found = True
-
-                        text += (
-                            f"🎞 {ep_name}\n"
-                            f"📡 {server_name}\n\n"
-                            f"🎬 XEM NGAY:\n"
-                            f"{embed}\n\n"
-                        )
-
-            if not found:
-
-                text += (
-                    "❌ Không tìm thấy player"
-                )
-
-        # =================================================
-        # OPHIM + KKPHIM
-        # =================================================
-
         else:
 
             detail_url = (
@@ -491,88 +422,82 @@ async def movie_detail(
                 []
             )
 
-            name = movie.get(
-                "name",
-                "Không tên"
-            )
+        name = movie.get(
+            "name",
+            "Không tên"
+        )
+
+        poster = (
+            movie.get("poster_url")
+            or movie.get("thumb_url")
+        )
+
+        if (
+            poster
+            and not poster.startswith("http")
+        ):
 
             poster = (
-                movie.get("poster_url")
-                or movie.get("thumb_url")
+                "https://phimimg.com/"
+                + poster.lstrip("/")
             )
 
-            if (
-                poster
-                and not poster.startswith(
-                    "http"
-                )
-            ):
+        text = (
+            f"🎬 {name}\n\n"
+        )
 
-                poster = (
-                    "https://phimimg.com/"
-                    + poster.lstrip("/")
-                )
+        found = False
 
-            text = (
-                f"🎬 {name}\n\n"
+        for server in episodes:
+
+            server_name = server.get(
+                "server_name",
+                "Server"
             )
 
-            found = False
+            items = (
+                server.get(
+                    "server_data",
+                    []
+                )
+                or server.get(
+                    "items",
+                    []
+                )
+            )
 
-            for server in episodes:
+            for ep in items:
 
-                server_name = server.get(
-                    "server_name",
-                    "Server"
+                ep_name = ep.get(
+                    "name",
+                    "FULL"
                 )
 
-                items = (
-                    server.get(
-                        "server_data",
-                        []
+                embed = (
+                    ep.get(
+                        "link_embed"
                     )
-                    or server.get(
-                        "items",
-                        []
+                    or ep.get(
+                        "embed"
                     )
                 )
 
-                for ep in items:
+                if embed:
 
-                    ep_name = ep.get(
-                        "name",
-                        "FULL"
+                    found = True
+
+                    text += (
+                        f"🎞 {ep_name}\n"
+                        f"📡 {server_name}\n\n"
+                        f"🎬 XEM NGAY:\n"
+                        f"{embed}\n\n"
                     )
 
-                    embed = (
-                        ep.get(
-                            "link_embed"
-                        )
-                        or ep.get(
-                            "embed"
-                        )
-                    )
+        if not found:
 
-                    if embed:
-
-                        found = True
-
-                        text += (
-                            f"🎞 {ep_name}\n"
-                            f"📡 {server_name}\n\n"
-                            f"🎬 XEM NGAY:\n"
-                            f"{embed}\n\n"
-                        )
-
-            if not found:
-
-                text += (
-                    "❌ Không tìm thấy player"
-                )
-
-        # =====================================================
-        # SEND
-        # =====================================================
+            text += (
+                "❌ Không tìm thấy player"
+            )
 
         if poster:
 
@@ -605,15 +530,11 @@ async def movie_detail(
             f"❌ Lỗi lấy thông tin phim!\n\n{e}"
         )
 
-
 # =====================================================
 # MAIN
 # =====================================================
 
 if __name__ == "__main__":
-
-    if not TOKEN:
-        raise ValueError("Thiếu BOT_TOKEN")
 
     app = (
         ApplicationBuilder()
@@ -643,8 +564,6 @@ if __name__ == "__main__":
 
     app.post_init = setup_commands
 
-    print("BOT STARTING WITH WEBHOOK...")
-
     PORT = int(
         os.environ.get("PORT", 10000)
     )
@@ -652,6 +571,8 @@ if __name__ == "__main__":
     APP_NAME = "movie-bot-tzd8"
 
     WEBHOOK_SECRET = "superbotfilm"
+
+    print("BOT STARTING WITH WEBHOOK...")
 
     app.run_webhook(
         listen="0.0.0.0",
